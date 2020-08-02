@@ -2,7 +2,10 @@
 
 import unittest
 
+from functools import reduce
+
 import immutable
+
 
 class TestImmutableList(unittest.TestCase):
     def test_init_empty(self):
@@ -131,19 +134,12 @@ class TestImmutableList(unittest.TestCase):
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [0, 1, 2, 1, 2, 3])
 
-    def test_shift_one(self):
+    def test_shift(self):
         a = immutable.List((1, 2, 3))
         self.assertEqual(list(a), [1, 2, 3])
-        b = a.shift(0)
+        b = a.shift()
         self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [1, 2, 3, 0])
-
-    def test_shift_many(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.shift(0, 1, 2)
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [1, 2, 3, 0, 1, 2])
+        self.assertEqual(list(b), [2, 3])
 
     def test_update(self):
         a = immutable.List((1, 2, 3))
@@ -152,10 +148,62 @@ class TestImmutableList(unittest.TestCase):
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [1, 8, 3])
 
-    def test_update_all(self):
+    def test_thru(self):
+        def sum(collection):
+            return reduce(lambda l, r: l + r, collection)
+
         a = immutable.List((1, 2, 3))
         self.assertEqual(list(a), [1, 2, 3])
-        b = a.update_all(lambda values: map(lambda x: x * 2, values))
+        b = a.thru(sum)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(b, 6)
+
+    def test_concat_empty(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat()
+        self.assertEqual(list(b), [1, 2, 3])
+        self.assertTrue(a is b)
+
+    def test_concat_values(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat(4, 5, 6)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3, 4, 5, 6])
+
+    def test_concat_collection(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat([4, 5, 6])
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3, 4, 5, 6])
+
+    def test_concat_collections(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat([4, 5, 6], [7, 8])
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3, 4, 5, 6, 7, 8])
+
+    def test_concat_immutable_collections(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat(immutable.List((4, 5, 6)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3, 4, 5, 6])
+
+    def test_concat_mixed(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat([4, 5, 6], 7, immutable.List((8, 9, 10)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+    def test_map(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.map(lambda values: map(lambda x: x * 2, values))
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [2, 4, 6])
 
