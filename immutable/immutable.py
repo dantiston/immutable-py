@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from collections import abc
-from typing import Iterable, Iterator, Callable, Generic, Tuple, TypeVar, Union
+from typing import Collection as CollectionT, Iterable, Iterator, Callable, Generic, Tuple, TypeVar, Union
 
 KeyT = TypeVar("KeyT")
 ValueT = TypeVar("ValueT")
@@ -109,8 +109,15 @@ class List(Indexed, Generic[ValueT]):
         items = [item for item_list in item_lists for item in item_list]
         return List(self.items[:] + items)
 
-    def map(self, updater: Callable[["List"], ReturnT]) -> ReturnT:
-        return List(updater(self.items[:]))
+    def map(self, updater: Callable[[ValueT], ReturnT]) -> "List":
+        return List(map(updater, self.items[:]))
+
+    def flat_map(self, updater: Callable[[Union[Iterable[ValueT], ValueT]], ReturnT]) -> "List":
+        item_lists = [
+            item if is_collection(item) else [item] for item in self.items[:]
+        ]
+        items = [item for item_list in item_lists for item in item_list]
+        return List(map(updater, items))
 
     def is_empty(self) -> bool:
         return len(self) == 0

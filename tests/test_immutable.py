@@ -203,9 +203,23 @@ class TestImmutableList(unittest.TestCase):
     def test_map(self):
         a = immutable.List((1, 2, 3))
         self.assertEqual(list(a), [1, 2, 3])
-        b = a.map(lambda values: map(lambda x: x * 2, values))
+        b = a.map(lambda x: x * 2)
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [2, 4, 6])
+
+    def test_flat_map_flat(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.flat_map(lambda x: x * 2)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [2, 4, 6])
+
+    def test_flat_map_nested(self):
+        a = immutable.List((immutable.List((1, 1, 1)), immutable.List((2, 2, 2)), immutable.List((3, 3, 3))))
+        self.assertEqual([list(x) for x in a], [[1, 1, 1], [2, 2, 2], [3, 3, 3]])
+        b = a.flat_map(lambda x: x * 2)
+        self.assertEqual([list(x) for x in a], [[1, 1, 1], [2, 2, 2], [3, 3, 3]])
+        self.assertEqual(list(b), [2, 2, 2, 4, 4, 4, 6, 6, 6])
 
     def test_len(self):
         a = immutable.List((1, 2, 3))
