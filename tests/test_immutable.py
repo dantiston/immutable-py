@@ -215,11 +215,80 @@ class TestImmutableList(unittest.TestCase):
         self.assertEqual(list(b), [2, 4, 6])
 
     def test_flat_map_nested(self):
-        a = immutable.List((immutable.List((1, 1, 1)), immutable.List((2, 2, 2)), immutable.List((3, 3, 3))))
+        a = immutable.List(
+            (
+                immutable.List((1, 1, 1)),
+                immutable.List((2, 2, 2)),
+                immutable.List((3, 3, 3)),
+            )
+        )
         self.assertEqual([list(x) for x in a], [[1, 1, 1], [2, 2, 2], [3, 3, 3]])
         b = a.flat_map(lambda x: x * 2)
         self.assertEqual([list(x) for x in a], [[1, 1, 1], [2, 2, 2], [3, 3, 3]])
         self.assertEqual(list(b), [2, 2, 2, 4, 4, 4, 6, 6, 6])
+
+    def test_filter(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.filter(lambda x: x % 2 == 0)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [2])
+
+    def test_zip_one(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.zip(immutable.List((4, 5, 6)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5], [3, 6]])
+
+    def test_zip_many(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.zip(immutable.List((4, 5, 6)), immutable.List((7, 8, 9)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual([list(x) for x in b], [[1, 4, 7], [2, 5, 8], [3, 6, 9]])
+
+    def test_zip_short(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.zip(immutable.List((4, 5)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5]])
+
+    def test_zip_all_one(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.zip_all(immutable.List((4, 5, 6)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5], [3, 6]])
+
+    def test_zip_all_many(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.zip_all(immutable.List((4, 5, 6)), immutable.List((7, 8, 9)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual([list(x) for x in b], [[1, 4, 7], [2, 5, 8], [3, 6, 9]])
+
+    def test_zip_all_long(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.zip_all(immutable.List((4, 5)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5], [3, None]])
+
+    def test_zip_longest_long(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.zip_longest(immutable.List((4, 5)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5], [3, None]])
+
+    def test_zip_with(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.zip_with(lambda x, y: x + y, immutable.List((4, 5, 6)))
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [5, 7, 9])
 
     def test_len(self):
         a = immutable.List((1, 2, 3))

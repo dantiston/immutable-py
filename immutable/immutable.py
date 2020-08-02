@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 
 from collections import abc
-from typing import Collection as CollectionT, Iterable, Iterator, Callable, Generic, Tuple, TypeVar, Union
+from itertools import zip_longest
+from typing import (
+    Collection as CollectionT,
+    Iterable,
+    Iterator,
+    Callable,
+    Generic,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 KeyT = TypeVar("KeyT")
 ValueT = TypeVar("ValueT")
@@ -59,9 +69,7 @@ class List(Indexed, Generic[ValueT]):
         return value in self.items
 
     def set(self, index: int, value: ValueT) -> "List":
-        result = self.items[:]
-        result[index] = value
-        return List(result)
+        return List.of(*self.items[:index], value, *self.items[index + 1 :])
 
     def delete(self, index: int) -> "List":
         result = self.items[:]
@@ -74,13 +82,13 @@ class List(Indexed, Generic[ValueT]):
         return List(result)
 
     def push(self, *values: Tuple[ValueT]) -> "List":
-        return List(self.items[:] + list(values))
+        return List(self.items + list(values))
 
     def pop(self, *values: Tuple[ValueT]) -> "List":
         return List(self.items[:-1])
 
     def unshift(self, *values: Tuple[ValueT]) -> "List":
-        return List(list(values) + self.items[:])
+        return List(list(values) + self.items)
 
     def shift(self) -> "List":
         return List(self.items[1:])
@@ -107,17 +115,34 @@ class List(Indexed, Generic[ValueT]):
         if self.is_empty() and len(item_lists) == 1:
             return List(item_lists[0])
         items = [item for item_list in item_lists for item in item_list]
-        return List(self.items[:] + items)
+        return List(self.items + items)
 
     def map(self, updater: Callable[[ValueT], ReturnT]) -> "List":
-        return List(map(updater, self.items[:]))
+        return List(map(updater, self.items))
 
-    def flat_map(self, updater: Callable[[Union[Iterable[ValueT], ValueT]], ReturnT]) -> "List":
-        item_lists = [
-            item if is_collection(item) else [item] for item in self.items[:]
-        ]
+    def flat_map(
+        self, updater: Callable[[Union[Iterable[ValueT], ValueT]], ReturnT]
+    ) -> "List":
+        item_lists = [item if is_collection(item) else [item] for item in self.items]
         items = [item for item_list in item_lists for item in item_list]
         return List(map(updater, items))
+
+    def filter(self, predicate: Callable[[ValueT], bool] = None) -> "List":
+        return List(filter(predicate, self.items))
+
+    def zip(self, *other: Tuple[Iterable[ValueT]]) -> "List":
+        return List(zip(self.items, *other))
+
+    def zip_all(self, *other: Tuple[Iterable[ValueT]]) -> "List":
+        return List(zip_longest(self.items, *other))
+
+    def zip_longest(self, *other: Tuple[Iterable[ValueT]]) -> "List":
+        return self.zip_all(*other)
+
+    def zip_with(
+        self, zipper: Callable[[ValueT, ValueT], ValueT], other: Iterable[ValueT]
+    ) -> "List":
+        return List(zipper(l, r) for l, r in zip(self.items, other))
 
     def is_empty(self) -> bool:
         return len(self) == 0
