@@ -11,7 +11,7 @@ import copy
 from dataclasses import dataclass
 from typing import List, Iterator
 
-from immutable import singleton
+from immutable.immutable import singleton
 
 DEPTH = 5
 WIDTH = 1 << DEPTH
@@ -34,9 +34,6 @@ class Vector(object):
         self.shift = shift
         self.root = root
         self.tail = tail
-
-    def __len__(self):
-        return self.length
 
     def _tail_offset(self) -> int:
         if len(self) < WIDTH:
@@ -125,8 +122,11 @@ class Vector(object):
         for i in range(len(self)):
             yield self.get(i)
 
-    def asList(self) -> List:
-        return list(self)
+    def __len__(self):
+        return self.length
+
+    def __contains__(self, value):
+        return value in list(self)
 
     def __repr__(self) -> str:
         return f"<Vector {repr(self.asList())}>"
