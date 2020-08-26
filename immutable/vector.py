@@ -11,7 +11,7 @@ import copy
 from dataclasses import dataclass
 from typing import List, Iterator
 
-from immutable.immutable import singleton
+from immutable.shared import singleton
 
 DEPTH = 5
 WIDTH = 1 << DEPTH
@@ -20,13 +20,14 @@ MASK = WIDTH - 1
 
 @dataclass
 class Node(object):
-    children: List['Node']
+    children: List["Node"]
 
-    def get(index: int, nsv) -> 'Node':
+    def get(index: int, nsv) -> "Node":
         self.children.get(index, nsv)
 
     def set(index: int, value) -> None:
         self.children[index] = value
+
 
 class Vector(object):
     def __init__(self, length: int, shift: int, root: Node, tail: List):
@@ -34,6 +35,7 @@ class Vector(object):
         self.shift = shift
         self.root = root
         self.tail = tail
+        self._hash = None
 
     def _tail_offset(self) -> int:
         if len(self) < WIDTH:
@@ -67,7 +69,7 @@ class Vector(object):
             )
         return result
 
-    def set(self, index: int, value):
+    def set(self, index: int, value) -> "Vector":
         if index >= 0 and index < len(self):
             if index >= self._tail_offset():
                 new_tail = list(self.tail)
@@ -104,7 +106,7 @@ class Vector(object):
             return node
         return Node(children=[self._new_path(level - DEPTH, node)])
 
-    def add(self, value):
+    def add(self, value) -> "Vector":
         if len(self) - self._tail_offset() < WIDTH:
             new_tail = [*self.tail, value]
             return Vector(self.length + 1, self.shift, self.root, new_tail)
@@ -118,14 +120,25 @@ class Vector(object):
             new_root = self._push_tail(self.shift, self.root, new_tail)
         return Vector(self.length + 1, new_shift, new_root, [value])
 
+    def concat(self, values) -> "Vector":
+        """Naive for now"""
+        result = self
+        for value in values:
+            result = result.add(value)
+        return result
+
     def __iter__(self) -> Iterator:
+        """Naive for now"""
         for i in range(len(self)):
             yield self.get(i)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.length
 
-    def __contains__(self, value):
+    def __bool__(self) -> bool:
+        return self.length > 0
+
+    def __contains__(self, value) -> bool:
         return value in list(self)
 
     def __repr__(self) -> str:
@@ -133,5 +146,25 @@ class Vector(object):
 
     def __str__(self) -> str:
         return str(self.asList())
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            result = 1
+            for value in self:
+                result = 31 * result + (hash(value) if value is not None else 0)
+            self._hash = result
+        return self._hash
+
+    def __eq__(self, other) -> bool:
+        if self is other:
+            return True
+        if isinstance(other, Vector):
+            if len(self) != len(other) or hash(self) != hash(other):
+                return False
+            for i in range(len(self)):
+                if self.get(i) != other.get(i):
+                    return False
+        return True
+
 
 _empty_vector = Vector(0, 5, Node(children=[]), [])
