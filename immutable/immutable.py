@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 
+"""
+immutable.py
+
+A library providing many Persistent Immutable data structures based on
+Immutable.js, focusing on both mimicking Immutable.js' API and feeling
+pythonic. Immutable.py includes List.
+"""
+
 from collections import abc
 from itertools import zip_longest
 from typing import (
@@ -43,6 +51,9 @@ class Indexed(Collection, Generic[ValueT]):
 
     def __contains__(self, value: ValueT) -> bool:
         return self.includes(value)
+
+    def is_empty(self) -> bool:
+        return len(self) == 0
 
 
 class List(Indexed, Generic[ValueT]):
@@ -143,9 +154,6 @@ class List(Indexed, Generic[ValueT]):
         self, zipper: Callable[[ValueT, ValueT], ValueT], other: Iterable[ValueT]
     ) -> "List":
         return List(zipper(l, r) for l, r in zip(self.items, other))
-
-    def is_empty(self) -> bool:
-        return len(self) == 0
 
     def __len__(self) -> int:
         return len(self.items)
