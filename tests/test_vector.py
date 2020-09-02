@@ -41,6 +41,53 @@ class TestVector(unittest.TestCase):
         self.assertEqual(a.get(0), 1)
         self.assertEqual(a.add(2).get(1), 2)
 
+    def test_pop_start(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.pop(0)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [2, 3])
+
+    def test_pop_mid(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.pop(1)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 3])
+
+    def test_pop_end_explicit(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.pop(2)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2])
+
+    def test_pop_end_implicit(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.pop()
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2])
+
+    def test_pop_end_explicit_one(self):
+        a = vector._empty_vector.add(1)
+        self.assertEqual(list(a), [1])
+        b = a.pop(0)
+        self.assertEqual(list(a), [1])
+        self.assertEqual(b, vector._empty_vector)
+
+    def test_pop_end_implicit_one(self):
+        a = vector._empty_vector.add(1)
+        self.assertEqual(list(a), [1])
+        b = a.pop()
+        self.assertEqual(list(a), [1])
+        self.assertEqual(b, vector._empty_vector)
+
+    def test_pop_empty(self):
+        a = vector._empty_vector
+        with self.assertRaises(IndexError):
+            a.pop()
+
     def test_remove(self):
         a = vector._empty_vector.add(1)
         self.assertEqual(a.get(0), 1)
