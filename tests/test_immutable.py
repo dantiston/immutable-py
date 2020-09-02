@@ -221,6 +221,20 @@ class TestImmutableList(unittest.TestCase):
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [1, 2, 3, 0, False, ""])
 
+    def test_concat_empty_collections(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat([], (), immutable.List())
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3])
+
+    def test_concat_falsy_values_empty_collections(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat(0, False, "", [], (), immutable.List())
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3, 0, False, ""])
+
     def test_map(self):
         a = immutable.List((1, 2, 3))
         self.assertEqual(list(a), [1, 2, 3])

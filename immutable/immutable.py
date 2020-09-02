@@ -126,10 +126,8 @@ class List(Indexed, Generic[ValueT]):
         if not values:
             return self
         item_lists = [
-            # TODO: This filters False, etc.
             value if is_collection(value) else [value]
             for value in values
-            if value
         ]
         if not item_lists:
             return self
