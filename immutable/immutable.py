@@ -95,7 +95,7 @@ class List(Indexed, Generic[ValueT]):
 
     def insert(self, index: int, value: ValueT) -> "List":
         """Naive for now"""
-        current = list(self)
+        current = self.vector._get_list()
         return _empty_list.concat(current[:index]).push(value).concat(current[index:])
 
     def push(self, *values: Tuple[ValueT]) -> "List":
@@ -168,6 +168,12 @@ class List(Indexed, Generic[ValueT]):
 
     def __iter__(self) -> Iterator[ValueT]:
         return iter(self.vector)
+
+    def __str__(self) -> str:
+        return str(self.vector)
+
+    def __repr__(self) -> str:
+        return f"List({self.vector._get_list()})"
 
 
 _empty_list = List()

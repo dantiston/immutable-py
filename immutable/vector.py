@@ -36,6 +36,9 @@ class Vector(object):
         self._root = root
         self._tail = tail
         self._hash = None
+        self._str = None
+        self._repr = None
+        self._list = None
 
     def _tail_offset(self) -> int:
         if len(self) < WIDTH:
@@ -138,12 +141,12 @@ class Vector(object):
         if i is None or i == len(self) - 1:
             if len(self) == 1:
                 return _empty_vector
-            return _empty_vector.concat(list(self)[:-1])
+            return _empty_vector.concat(self._get_list()[:-1])
         return self.splice(i, 1)
 
     def remove(self, value) -> "Vector":
         """Naive for now"""
-        current = list(self)
+        current = self._get_list()
         current.remove(value)
         return _empty_vector.concat(current)
 
@@ -154,13 +157,16 @@ class Vector(object):
 
     def splice(self, index: int, to_remove: int) -> "Vector":
         """Naive for now"""
-        current = list(self)
+        current = self._get_list()
         return _empty_vector.concat(current[:index]).concat(current[index + to_remove:])
 
+    def _get_list(self) -> List:
+        if self._list is None:
+            self._list = [self.get(i) for i in range(len(self))]
+        return self._list
+
     def __iter__(self) -> Iterator:
-        """Naive for now"""
-        for i in range(len(self)):
-            yield self.get(i)
+        return iter(self._get_list())
 
     def __len__(self) -> int:
         return self._length
@@ -169,13 +175,17 @@ class Vector(object):
         return self._length > 0
 
     def __contains__(self, value) -> bool:
-        return value in list(self)
+        return value in self._get_list()
 
     def __repr__(self) -> str:
-        return f"<Vector {repr(list(self))}>"
+        if self._repr is None:
+            self._repr = f"<Vector {repr(self._get_list())}>"
+        return self._repr
 
     def __str__(self) -> str:
-        return str(list(self))
+        if self._str is None:
+            self._str = str(self._get_list())
+        return self._str
 
     def __hash__(self) -> int:
         if self._hash is None:
