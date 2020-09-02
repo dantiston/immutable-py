@@ -77,7 +77,21 @@ class TestImmutableList(unittest.TestCase):
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [1, 7, 3])
 
-    def test_delete(self):
+    def test_delete_first(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.delete(0)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [2, 3])
+
+    def test_delete_mid(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.delete(1)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 3])
+
+    def test_delete_last(self):
         a = immutable.List((1, 2, 3))
         self.assertEqual(list(a), [1, 2, 3])
         b = a.delete(2)
@@ -199,6 +213,13 @@ class TestImmutableList(unittest.TestCase):
         b = a.concat([4, 5, 6], 7, immutable.List((8, 9, 10)))
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+    def test_concat_falsy_values(self):
+        a = immutable.List((1, 2, 3))
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.concat(0, False, "")
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3, 0, False, ""])
 
     def test_map(self):
         a = immutable.List((1, 2, 3))

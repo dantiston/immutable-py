@@ -21,11 +21,13 @@ from typing import (
     Union,
 )
 
+from immutable.vector import _empty_vector, Vector
+
 KeyT = TypeVar("KeyT")
 ValueT = TypeVar("ValueT")
 ReturnT = TypeVar("ReturnT")
 
-singleton = object()
+from immutable.shared import singleton
 
 
 def is_collection(value) -> bool:
@@ -58,7 +60,15 @@ class Indexed(Collection, Generic[ValueT]):
 
 class List(Indexed, Generic[ValueT]):
     def __init__(self, items: Iterable[ValueT] = ()) -> None:
-        self.items = list(items)
+        self.vector = _empty_vector.concat(items)
+
+    @classmethod
+    def _of_vector(cls, vector: Vector) -> "List":
+        if not vector:
+            return _empty_list
+        result = List()
+        result.vector = vector
+        return result
 
     @classmethod
     def of(cls, *items: Tuple[ValueT]) -> "List":
@@ -69,40 +79,37 @@ class List(Indexed, Generic[ValueT]):
         return isinstance(other, List)
 
     def get(self, index: int, nsv: ValueT = singleton) -> ValueT:
-        try:
-            return self.items[index]
-        except IndexError as e:
-            if nsv is singleton:
-                raise e
-            return nsv
+        return self.vector.get(index if index >= 0 else len(self) + index, nsv=nsv)
 
     def includes(self, value: ValueT) -> bool:
-        return value in self.items
+        return value in self.vector
 
     def set(self, index: int, value: ValueT) -> "List":
-        return List.of(*self.items[:index], value, *self.items[index + 1 :])
+        return List._of_vector(self.vector.set(index, value))
 
     def delete(self, index: int) -> "List":
-        result = self.items[:]
-        result.pop(index)
-        return List(result)
+        return self.pop(index)
+
+    def remove(self, value: ValueT) -> "List":
+        return List._of_vector(self.vector.remove(value))
 
     def insert(self, index: int, value: ValueT) -> "List":
-        result = self.items[:]
-        result.insert(index, value)
-        return List(result)
+        """Naive for now"""
+        current = list(self)
+        return _empty_list.concat(current[:index]).push(value).concat(current[index:])
 
     def push(self, *values: Tuple[ValueT]) -> "List":
-        return List(self.items + list(values))
+        return List._of_vector(self.vector.concat(values))
 
-    def pop(self, *values: Tuple[ValueT]) -> "List":
-        return List(self.items[:-1])
+    def pop(self, i: int = None) -> "List":
+        return List._of_vector(self.vector.pop(i))
 
     def unshift(self, *values: Tuple[ValueT]) -> "List":
-        return List(list(values) + self.items)
+        """Naive for now"""
+        return _empty_list.concat(values).concat(self)
 
     def shift(self) -> "List":
-        return List(self.items[1:])
+        return List._of_vector(self.vector.shift())
 
     def update(
         self, index: int, updater: Callable[[ValueT], ValueT], nsv: ValueT = singleton
@@ -119,33 +126,36 @@ class List(Indexed, Generic[ValueT]):
         if not values:
             return self
         item_lists = [
-            value if is_collection(value) else [value] for value in values if value
+            # TODO: This filters False, etc.
+            value if is_collection(value) else [value]
+            for value in values
+            if value
         ]
         if not item_lists:
             return self
         if self.is_empty() and len(item_lists) == 1:
             return List(item_lists[0])
         items = [item for item_list in item_lists for item in item_list]
-        return List(self.items + items)
+        return List._of_vector(self.vector.concat(items))
 
     def map(self, updater: Callable[[ValueT], ReturnT]) -> "List":
-        return List(map(updater, self.items))
+        return List(map(updater, self.vector))
 
     def flat_map(
         self, updater: Callable[[Union[Iterable[ValueT], ValueT]], ReturnT]
     ) -> "List":
-        item_lists = [item if is_collection(item) else [item] for item in self.items]
+        item_lists = [item if is_collection(item) else [item] for item in self.vector]
         items = [item for item_list in item_lists for item in item_list]
         return List(map(updater, items))
 
     def filter(self, predicate: Callable[[ValueT], bool] = None) -> "List":
-        return List(filter(predicate, self.items))
+        return List(filter(predicate, self.vector))
 
     def zip(self, *other: Tuple[Iterable[ValueT]]) -> "List":
-        return List(zip(self.items, *other))
+        return List(zip(self.vector, *other))
 
     def zip_all(self, *other: Tuple[Iterable[ValueT]]) -> "List":
-        return List(zip_longest(self.items, *other))
+        return List(zip_longest(self.vector, *other))
 
     def zip_longest(self, *other: Tuple[Iterable[ValueT]]) -> "List":
         return self.zip_all(*other)
@@ -153,13 +163,13 @@ class List(Indexed, Generic[ValueT]):
     def zip_with(
         self, zipper: Callable[[ValueT, ValueT], ValueT], other: Iterable[ValueT]
     ) -> "List":
-        return List(zipper(l, r) for l, r in zip(self.items, other))
+        return List(zipper(l, r) for l, r in zip(self.vector, other))
 
     def __len__(self) -> int:
-        return len(self.items)
+        return len(self.vector)
 
     def __iter__(self) -> Iterator[ValueT]:
-        return iter(self.items)
+        return iter(self.vector)
 
 
 _empty_list = List()

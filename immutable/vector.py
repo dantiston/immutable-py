@@ -31,10 +31,10 @@ class Node(object):
 
 class Vector(object):
     def __init__(self, length: int, shift: int, root: Node, tail: List):
-        self.length = length
-        self.shift = shift
-        self.root = root
-        self.tail = tail
+        self._length = length
+        self._shift = shift
+        self._root = root
+        self._tail = tail
         self._hash = None
 
     def _tail_offset(self) -> int:
@@ -44,8 +44,8 @@ class Vector(object):
 
     def _get_values(self, index: int):
         if index >= self._tail_offset():
-            return self.tail
-        node = self.root
+            return self._tail
+        node = self._root
         for level in range(shift, 0, -DEPTH):
             node = node.get((i >> level) & MASK)
         return node.children
@@ -72,14 +72,14 @@ class Vector(object):
     def set(self, index: int, value) -> "Vector":
         if index >= 0 and index < len(self):
             if index >= self._tail_offset():
-                new_tail = list(self.tail)
+                new_tail = list(self._tail)
                 new_tail[index & MASK] = value
-                return Vector(self.length, self.shift, self.root, new_tail)
+                return Vector(self._length, self._shift, self._root, new_tail)
             return Vector(
-                self.length,
-                self.shift,
-                self._set(self.shift, self.root, index, value),
-                self.tail,
+                self._length,
+                self._shift,
+                self._set(self._shift, self._root, index, value),
+                self._tail,
             )
         if index == len(self):
             return self.add(value)
@@ -108,17 +108,17 @@ class Vector(object):
 
     def add(self, value) -> "Vector":
         if len(self) - self._tail_offset() < WIDTH:
-            new_tail = [*self.tail, value]
-            return Vector(self.length + 1, self.shift, self.root, new_tail)
+            new_tail = [*self._tail, value]
+            return Vector(self._length + 1, self._shift, self._root, new_tail)
         new_root = None
-        new_shift = self.shift
-        new_tail = Node(self.tail)
+        new_shift = self._shift
+        new_tail = Node(self._tail)
         if (len(self) >> DEPTH) > (1 << shift):
             new_root = Node(children=[root, self._new_path(shift, new_tail)])
             new_shift += DEPTH
         else:
-            new_root = self._push_tail(self.shift, self.root, new_tail)
-        return Vector(self.length + 1, new_shift, new_root, [value])
+            new_root = self._push_tail(self._shift, self._root, new_tail)
+        return Vector(self._length + 1, new_shift, new_root, [value])
 
     def concat(self, values) -> "Vector":
         """Naive for now"""
@@ -127,16 +127,46 @@ class Vector(object):
             result = result.add(value)
         return result
 
+    def pop(self, i=None):  # -> Tuple[TValue, "Vector"]:
+        if not self:
+            raise IndexError("pop from empty vector")
+        if i is not None:
+            if i >= len(self) or (i < 0 and -i > len(self)):
+                raise IndexError("pop index out of range")
+            if i == 0:
+                return self.shift()
+        if i is None or i == len(self) - 1:
+            if len(self) == 1:
+                return _empty_vector
+            return _empty_vector.concat(list(self)[:-1])
+        return self.splice(i, 1)
+
+    def remove(self, value) -> "Vector":
+        """Naive for now"""
+        current = list(self)
+        current.remove(value)
+        return _empty_vector.concat(current)
+
+    def shift(self) -> "Vector":
+        if len(self) == 1:
+            return _empty_vector
+        return self.splice(0, 1)
+
+    def splice(self, index: int, to_remove: int) -> "Vector":
+        """Naive for now"""
+        current = list(self)
+        return _empty_vector.concat(current[:index]).concat(current[index + to_remove:])
+
     def __iter__(self) -> Iterator:
         """Naive for now"""
         for i in range(len(self)):
             yield self.get(i)
 
     def __len__(self) -> int:
-        return self.length
+        return self._length
 
     def __bool__(self) -> bool:
-        return self.length > 0
+        return self._length > 0
 
     def __contains__(self, value) -> bool:
         return value in list(self)
