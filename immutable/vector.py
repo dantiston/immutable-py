@@ -172,10 +172,10 @@ class Vector(object):
         return value in list(self)
 
     def __repr__(self) -> str:
-        return f"<Vector {repr(self.asList())}>"
+        return f"<Vector {repr(list(self))}>"
 
     def __str__(self) -> str:
-        return str(self.asList())
+        return str(list(self))
 
     def __hash__(self) -> int:
         if self._hash is None:
@@ -194,7 +194,8 @@ class Vector(object):
             for i in range(len(self)):
                 if self.get(i) != other.get(i):
                     return False
-        return True
+            return True
+        return False
 
 
 _empty_vector = Vector(0, 5, Node(children=[]), [])

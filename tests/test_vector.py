@@ -41,6 +41,51 @@ class TestVector(unittest.TestCase):
         self.assertEqual(a.get(0), 1)
         self.assertEqual(a.add(2).get(1), 2)
 
+    def test_remove(self):
+        a = vector._empty_vector.add(1)
+        self.assertEqual(a.get(0), 1)
+        self.assertEqual(a.add(2).get(1), 2)
+
+    def test_shift(self):
+        a = vector._empty_vector.add(1)
+        self.assertEqual(a.get(0), 1)
+        self.assertEqual(a.add(2).get(1), 2)
+
+    def test_splice_basic(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.splice(1, 1)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 3])
+
+    def test_splice_start(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.splice(0, 1)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [2, 3])
+
+    def test_splice_end(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.splice(2, 1)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2])
+
+    def test_splice_long(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.splice(1, 2)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1])
+
+    def test_splice_over(self):
+        a = vector._empty_vector.add(1).add(2).add(3)
+        self.assertEqual(list(a), [1, 2, 3])
+        b = a.splice(1, 3)
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1])
+
     def test_concat_empty(self):
         a = vector._empty_vector.concat([])
         self.assertEqual(len(a), 0)
@@ -115,15 +160,13 @@ class TestVector(unittest.TestCase):
         a = vector._empty_vector.add(1).add(2)
         b = vector._empty_vector.add(1)
         self.assertNotEqual(len(a), len(b))
-        actual = a == b
-        self.assertFalse(actual)
+        self.assertFalse(a == b)
 
     def test_eq_negative_different_hashes(self):
         a = vector._empty_vector.add(1).add(2)
         b = vector._empty_vector.add(1).add(3)
         self.assertNotEqual(hash(a), hash(b))
-        actual = a == b
-        self.assertFalse(actual)
+        self.assertFalse(a == b)
 
     def test_eq_negative_different_values(self):
         class BrokenClass(object):
@@ -136,19 +179,21 @@ class TestVector(unittest.TestCase):
         a = vector._empty_vector.add(BrokenClass())
         b = vector._empty_vector.add(BrokenClass())
         self.assertEqual(hash(a), hash(b))
-        actual = a == b
-        self.assertFalse(actual)
+        self.assertFalse(a == b)
+
+    def test_eq_negative_different_type(self):
+        a = vector._empty_vector.add(1).add(2)
+        b = "abc"
+        self.assertFalse(a == b)
 
     def test_eq_positive_self(self):
         a = vector._empty_vector.add(1).add(2)
-        actual = a == a
-        self.assertTrue(actual)
+        self.assertTrue(a == a)
 
     def test_eq_positive_equivalent(self):
         a = vector._empty_vector.add(1).add(2)
         b = vector._empty_vector.add(1).add(2)
-        actual = a == b
-        self.assertTrue(actual)
+        self.assertTrue(a == b)
 
     def test_eq_positive_reciprocal(self):
         a = vector._empty_vector.add(1).add(2)
