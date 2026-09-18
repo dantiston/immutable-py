@@ -13,13 +13,15 @@ Phases 1–5 below are done: `immutable/collection.py` has a shared
 functional mixin once and an `is_()`/`hash_()` equality protocol
 (`immutable/equality.py`), and `List`, `Stack`, `Map`/`OrderedMap`, and
 `Set`/`OrderedSet` are all built on top of it (`immutable/list.py`,
-`stack.py`, `map.py`, `set.py`). `Map`/`Set` (and by extension
-`OrderedMap`/`OrderedSet`) are now backed by a real persistent HAMT
-(`immutable/hamt.py`, Phase 9's first item) instead of copying a `dict` on
-every write. 149 tests pass (`python -m unittest discover -s tests`).
-Still missing: `Record`, `Seq`/`Range`/`Repeat`, `fromJS`/`toJS`,
-`flatten`/`flatMap`, a public `with_mutations` API, the `List`/`Stack`
-vector-trie (still copy-on-write), and all of Phase 0 (CI, packaging, type
+`stack.py`, `map.py`, `set.py`). Phase 9's structural-sharing work is also
+done: `Map`/`Set` (and by extension `OrderedMap`/`OrderedSet`) are backed
+by a persistent HAMT (`immutable/hamt.py`) and `List`/`Stack` by a
+persistent vector trie (`immutable/vector.py`), rather than either copying
+a Python `dict`/`list` on every write. 173 tests pass (`python -m
+unittest discover -s tests`). Still missing: `Record`, `Seq`/`Range`/
+`Repeat`, `fromJS`/`toJS`, `flatten`/`flatMap`, a public `with_mutations`
+API, `List`'s O(n) `insert`/`delete`/`unshift`/`shift` (a plain vector
+trie doesn't make those cheap), and all of Phase 0 (CI, packaging, type
 checking). See the per-phase notes below for exactly what shipped vs.
 what's still open in each.
 
@@ -165,20 +167,43 @@ not the final implementation.
       `tests/test_hamt.py` (persistence-after-write, collisions, >32-way
       fan-out, randomized set/delete against a `dict` oracle) plus
       ordering-specific tests in `test_map.py`/`test_set.py`.
-- [ ] Implement a persistent vector trie (32-way branching, like
-      Immutable.js) for `List`/`Stack` — still backed by a copy-on-write
-      Python list.
+- [x] Implement a persistent vector trie (32-way branching, like
+      Immutable.js) for `List`/`Stack` (`immutable/vector.py`): the classic
+      Clojure/Immutable.js `PersistentVector` design — a trie for
+      O(log32 n) `get`/`set` at an arbitrary index, plus a small "tail"
+      buffer holding the last (<=32) elements for O(1)-amortized
+      `push`/`pop` at the end (most pushes just grow the tail; only every
+      32nd push folds it into the trie as a new leaf). `List` wraps a
+      `Vector` directly. `Stack`'s push/pop/peek work at the *front*, not
+      the end the trie is optimized for, so it stores elements internally
+      in reverse order — `Stack.push` becomes an append to the backing
+      `Vector`, `peek`/`pop` read/remove the `Vector`'s last element — which
+      gets Stack's hot path to the same O(1)-amortized/O(log32 n) without a
+      second, prepend-optimized structure. `List`'s `insert`/`delete`/
+      `unshift`/`shift` remain O(n) rebuilds (a plain vector trie, like
+      Immutable.js's own, doesn't support cheap arbitrary-index insert or
+      prepend — that needs a *relaxed* radix trie, out of scope here).
+      Covered by `tests/test_vector.py` (persistence, tail/root-overflow
+      boundary crossings, pop-to-empty, 5000-op randomized runs against a
+      `list` oracle across 50 seeds) plus scale tests in
+      `test_immutable.py`/`test_stack.py`.
 - [ ] Add `withMutations`/transient-batch support so bulk updates (e.g.
-      building a large `Map` from scratch) avoid the per-op allocation
-      overhead — `Map`/`OrderedMap`/`Set`/`OrderedSet` constructors
-      already do this implicitly (a private `_wrap`/direct-build path
-      bypasses the public `set`/`add` per call when constructing from an
-      iterable), but there's no public `with_mutations` API yet for
-      callers to batch their own multi-step updates.
-- [ ] Add benchmarks (`asv` or a simple `pytest-benchmark` suite) comparing
-      the `List`'s naive-copy backing against `Map`/`Set`'s now-trie-backed
-      implementations, so the `List`/`Stack` vector-trie work above has a
-      measurable target.
+      building a large `Map`/`List` from scratch) avoid the per-op
+      allocation overhead — every type's constructor already does this
+      implicitly (building via repeated `push`/`set` internally, or a
+      private `_wrap` direct-build path), but there's no public
+      `with_mutations` API yet for callers to batch their *own*
+      multi-step updates without an intermediate persistent value per
+      step.
+- [ ] `List`'s `insert`/`delete`/`unshift`/`shift` are still O(n) — a
+      relaxed radix trie (RRB-tree) would bring these down, but is
+      substantially more complex than the plain vector trie above and
+      matches what Immutable.js itself doesn't fully solve either.
+- [ ] Add benchmarks (`asv` or a simple `pytest-benchmark` suite)
+      quantifying the trie-backed implementations' actual complexity
+      (e.g. `List.push`/`Map.set` cost staying ~flat as size grows, vs.
+      the old copy-on-write baseline) rather than relying on Big-O
+      reasoning alone.
 
 ## Phase 10 — Docs & examples
 
@@ -200,13 +225,14 @@ not the final implementation.
 ## Suggested sequencing
 
 Phases 1–5 (core abstractions, `List`, `Map`/`OrderedMap`, `Set`/`OrderedSet`,
-`Stack`) are done, and Phase 9's HAMT item (the `Map`/`Set` persistent
-backing) is done ahead of schedule. Next up, in roughly descending priority:
-Phase 0 (infra — worth doing now, before the surface area grows further and
-makes retrofitting CI/type-checking more painful), Phase 6 (`Record`), then
+`Stack`) are done, and Phase 9's structural-sharing items (HAMT for
+`Map`/`Set`, vector trie for `List`/`Stack`) are both done ahead of
+schedule — swapping the backing store didn't require any change to either
+type's public API. Next up, in roughly descending priority: Phase 0
+(infra — worth doing now, before the surface area grows further and makes
+retrofitting CI/type-checking more painful), Phase 6 (`Record`), then
 Phase 8's remaining `fromJS`/`toJS` item. `Seq`/`Range`/`Repeat` (Phase 7)
-and the `List`/`Stack` vector-trie (the rest of Phase 9) remain the two
-things most worth deferring: both are substantial, and `List`'s current
-eager/copying implementation is a legitimate v0.1 to ship and get feedback
-on first — the `Map`/`Set` HAMT work shows the same technique applies
-cleanly to `List`/`Stack` later without disrupting their public API.
+and Phase 9's remaining items (`with_mutations`, benchmarks, and the
+harder relaxed-radix-trie work needed for O(log n) `List.insert`/
+`unshift`) are the things most worth deferring — all substantial, and none
+block the collections already being fully usable.

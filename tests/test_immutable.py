@@ -246,3 +246,37 @@ class TestImmutableList(unittest.TestCase):
         actual = list(a)
         expected = [1, 2, 3]
         self.assertEqual(actual, expected)
+
+    def test_large_scale_push_persistence(self):
+        a = immutable.List()
+        snapshots = []
+        for i in range(200):
+            a = a.push(i)
+            snapshots.append(a)
+        for i, snap in enumerate(snapshots):
+            self.assertEqual(len(snap), i + 1)
+            self.assertEqual(list(snap), list(range(i + 1)))
+            self.assertEqual(snap.get(0), 0)
+            self.assertEqual(snap.get(-1), i)
+
+    def test_large_scale_pop_all_the_way(self):
+        a = immutable.List(range(200))
+        while len(a) > 0:
+            expected_len = len(a) - 1
+            a = a.pop()
+            self.assertEqual(len(a), expected_len)
+            self.assertEqual(list(a), list(range(expected_len)))
+
+    def test_large_scale_set(self):
+        a = immutable.List(range(200))
+        b = a.set(150, "changed")
+        self.assertEqual(a.get(150), 150)
+        self.assertEqual(b.get(150), "changed")
+        self.assertEqual(len(b), 200)
+
+    def test_negative_get_across_scale(self):
+        a = immutable.List(range(100))
+        self.assertEqual(a.get(-1), 99)
+        self.assertEqual(a.get(-100), 0)
+        with self.assertRaises(IndexError):
+            a.get(-101)
