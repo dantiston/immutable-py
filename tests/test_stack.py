@@ -59,6 +59,26 @@ class TestStack(unittest.TestCase):
         b = immutable.Stack((1, 2, 3))
         self.assertEqual(a, b)
 
+    def test_large_scale_push_keeps_last_pushed_on_top(self):
+        a = immutable.Stack()
+        for i in range(200):
+            a = a.push(i)
+        self.assertEqual(a.peek(), 199)
+        self.assertEqual(list(a), list(range(199, -1, -1)))
+        self.assertEqual(len(a), 200)
+
+    def test_large_scale_pop_all_the_way(self):
+        a = immutable.Stack(range(200))
+        while len(a) > 0:
+            expected = list(a)[1:]
+            a = a.pop()
+            self.assertEqual(list(a), expected)
+
+    def test_get_matches_front_to_back_order(self):
+        a = immutable.Stack(range(100))
+        for i in range(100):
+            self.assertEqual(a.get(i), i)
+
 
 if __name__ == "__main__":
     unittest.main()

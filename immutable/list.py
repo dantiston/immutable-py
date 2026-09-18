@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 
-from typing import Callable, Generic, Iterable, Iterator, TypeVar, Union
+from typing import Callable, Generic, Iterable, Iterator, Union
 
 from .collection import Indexed, ReturnT, ValueT, is_collection
 from .equality import singleton
+from .vector import Vector
 
 
 class List(Indexed[ValueT], Generic[ValueT]):
     def __init__(self, items: Iterable[ValueT] = ()) -> None:
-        self.items = list(items)
+        self._vector = Vector.from_iterable(items)
+
+    @classmethod
+    def _wrap(cls, vector: Vector) -> "List":
+        instance = cls.__new__(cls)
+        instance._vector = vector
+        return instance
 
     @classmethod
     def of(cls, *items: ValueT) -> "List":
@@ -19,54 +26,61 @@ class List(Indexed[ValueT], Generic[ValueT]):
         return isinstance(other, List)
 
     def get(self, index: int, nsv: ValueT = singleton) -> ValueT:
+        index = self._normalize_index(index)
         try:
-            return self.items[index]
-        except IndexError as e:
+            return self._vector.get(index)
+        except IndexError:
             if nsv is singleton:
-                raise e
+                raise
             return nsv
 
     def _normalize_index(self, index: int) -> int:
-        return index + len(self.items) if index < 0 else index
+        return index + len(self._vector) if index < 0 else index
 
     def set(self, index: int, value: ValueT) -> "List":
         index = self._normalize_index(index)
         if index < 0:
             return self
-        items = self.items[:]
-        if index >= len(items):
-            items.extend([None] * (index - len(items) + 1))
-        items[index] = value
-        return List(items)
+        vector = self._vector
+        if index >= len(vector):
+            for _ in range(index - len(vector)):
+                vector = vector.push(None)
+            vector = vector.push(value)
+        else:
+            vector = vector.set(index, value)
+        return List._wrap(vector)
 
     def delete(self, index: int) -> "List":
         index = self._normalize_index(index)
-        if not 0 <= index < len(self.items):
+        if not 0 <= index < len(self._vector):
             return self
-        items = self.items[:]
+        items = list(self._vector)
         items.pop(index)
         return List(items)
 
     remove = delete
 
     def insert(self, index: int, value: ValueT) -> "List":
-        items = self.items[:]
+        items = list(self._vector)
         items.insert(index, value)
         return List(items)
 
     def push(self, *values: ValueT) -> "List":
-        return List(self.items[:] + list(values))
+        vector = self._vector
+        for value in values:
+            vector = vector.push(value)
+        return List._wrap(vector)
 
     def pop(self) -> "List":
-        if not self.items:
+        if not self._vector:
             return self
-        return List(self.items[:-1])
+        return List._wrap(self._vector.pop())
 
     def unshift(self, *values: ValueT) -> "List":
-        return List(list(values) + self.items[:])
+        return List(list(values) + list(self._vector))
 
     def shift(self) -> "List":
-        return List(self.items[1:])
+        return List(list(self._vector)[1:])
 
     def update(
         self,
@@ -77,10 +91,14 @@ class List(Indexed[ValueT], Generic[ValueT]):
         return self.set(index, updater(self.get(index, nsv)))
 
     def set_size(self, size: int) -> "List":
-        if size < len(self.items):
-            return List(self.items[:size])
-        if size > len(self.items):
-            return List(self.items[:] + [None] * (size - len(self.items)))
+        n = len(self._vector)
+        if size < n:
+            return List(list(self._vector)[:size])
+        if size > n:
+            vector = self._vector
+            for _ in range(size - n):
+                vector = vector.push(None)
+            return List._wrap(vector)
         return self
 
     def thru(self, updater: Callable[["List"], ReturnT]) -> ReturnT:
@@ -95,17 +113,20 @@ class List(Indexed[ValueT], Generic[ValueT]):
         item_lists = [v if is_collection(v) else [v] for v in values]
         if self.is_empty() and len(item_lists) == 1:
             return List(item_lists[0])
-        items = [item for item_list in item_lists for item in item_list]
-        return List(self.items[:] + items)
+        vector = self._vector
+        for item_list in item_lists:
+            for item in item_list:
+                vector = vector.push(item)
+        return List._wrap(vector)
 
     def __len__(self) -> int:
-        return len(self.items)
+        return len(self._vector)
 
     def __iter__(self) -> Iterator[ValueT]:
-        return iter(self.items)
+        return iter(self._vector)
 
     def __repr__(self) -> str:
-        return f"List({self.items!r})"
+        return f"List({list(self._vector)!r})"
 
 
 _empty_list = List()
