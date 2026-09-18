@@ -13,8 +13,10 @@ yields new updated data.
 
 These data structures aim to be highly efficient on cPython by using structural
 sharing via [hash maps tries][] and [vector tries][] as popularized by Clojure
-and Scala, minimizing the need to copy or cache data. (The trie-based backing
-is not yet implemented — see [ROADMAP.md](ROADMAP.md) for the current state.)
+and Scala, minimizing the need to copy or cache data. `Map`/`Set` are backed
+by a real [hash array mapped trie][hash maps tries] (`immutable/hamt.py`);
+`List`/`Stack` still copy their backing Python list on every write — see
+[ROADMAP.md](ROADMAP.md) for the current state.
 
 Immutable.py currently includes `List`, `Stack`, `Map`, `OrderedMap`, `Set`,
 and `OrderedSet`, all sharing a common functional API (`map`, `filter`,

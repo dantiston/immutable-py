@@ -92,6 +92,39 @@ class TestSet(unittest.TestCase):
         self.assertTrue(immutable.Set.is_set(a))
         self.assertTrue(immutable.OrderedSet.is_ordered_set(a))
 
+    def test_ordered_set_preserves_insertion_order(self):
+        values = [f"v{i}" for i in range(50)]
+        a = immutable.OrderedSet(values)
+        self.assertEqual(list(a), values)
+
+    def test_ordered_set_re_add_does_not_reorder(self):
+        a = immutable.OrderedSet(["a", "b", "c"])
+        b = a.add("a")
+        self.assertTrue(a is b)
+        self.assertEqual(list(b), ["a", "b", "c"])
+
+    def test_ordered_set_delete_preserves_remaining_order(self):
+        a = immutable.OrderedSet(["a", "b", "c"])
+        b = a.delete("b")
+        self.assertEqual(list(b), ["a", "c"])
+
+    def test_of_is_polymorphic(self):
+        a = immutable.OrderedSet.of(1, 2, 3)
+        self.assertIsInstance(a, immutable.OrderedSet)
+        self.assertEqual(list(a), [1, 2, 3])
+
+    def test_persistence_across_many_adds(self):
+        a = immutable.Set()
+        snapshots = []
+        for i in range(50):
+            a = a.add(i)
+            snapshots.append(a)
+        for i, snap in enumerate(snapshots):
+            self.assertEqual(len(snap), i + 1)
+            self.assertTrue(snap.has(i))
+            if i + 1 < len(snapshots):
+                self.assertFalse(snap.has(i + 1))
+
 
 if __name__ == "__main__":
     unittest.main()

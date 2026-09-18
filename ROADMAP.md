@@ -13,11 +13,14 @@ Phases 1–5 below are done: `immutable/collection.py` has a shared
 functional mixin once and an `is_()`/`hash_()` equality protocol
 (`immutable/equality.py`), and `List`, `Stack`, `Map`/`OrderedMap`, and
 `Set`/`OrderedSet` are all built on top of it (`immutable/list.py`,
-`stack.py`, `map.py`, `set.py`). 123 tests pass (`python -m unittest
-discover -s tests`). Still missing: `Record`, `Seq`/`Range`/`Repeat`,
-`fromJS`/`toJS`, `flatten`/`flatMap`, `with_mutations`/transient batching,
-the real trie-backed performance layer, and all of Phase 0 (CI, packaging,
-type checking). See the per-phase notes below for exactly what shipped vs.
+`stack.py`, `map.py`, `set.py`). `Map`/`Set` (and by extension
+`OrderedMap`/`OrderedSet`) are now backed by a real persistent HAMT
+(`immutable/hamt.py`, Phase 9's first item) instead of copying a `dict` on
+every write. 149 tests pass (`python -m unittest discover -s tests`).
+Still missing: `Record`, `Seq`/`Range`/`Repeat`, `fromJS`/`toJS`,
+`flatten`/`flatMap`, a public `with_mutations` API, the `List`/`Stack`
+vector-trie (still copy-on-write), and all of Phase 0 (CI, packaging, type
+checking). See the per-phase notes below for exactly what shipped vs.
 what's still open in each.
 
 ## Phase 0 — Project infrastructure
@@ -146,14 +149,36 @@ op instead of Immutable.js's O(log32 n). This is fine for correctness and
 early API work, but should be treated as a deliberate, documented tradeoff,
 not the final implementation.
 
+- [x] Implement a HAMT (hash array mapped trie) for `Map`/`Set`
+      (`immutable/hamt.py`): 32-way branching bitmap-indexed nodes,
+      compacted so an occupied slot holds either a leaf `(key, value)`
+      pair or a child node (no wasted allocation for singleton subtrees),
+      with a `_CollisionNode` fallback for genuine hash collisions after
+      all bits are consumed. `Map`/`Set` now wrap a `HAMT` instead of
+      copying a `dict` on every write. `OrderedMap`/`OrderedSet` gained
+      real insertion-order tracking (a tuple of keys alongside the trie)
+      as a consequence — they could no longer piggyback on Python
+      `dict`'s incidental ordering once the backing store stopped being a
+      `dict`, which is arguably more correct: `Map`/`Set` now iterate in
+      genuine hash-bucket order like Immutable.js's real unordered types,
+      rather than accidentally-insertion-ordered. Covered by
+      `tests/test_hamt.py` (persistence-after-write, collisions, >32-way
+      fan-out, randomized set/delete against a `dict` oracle) plus
+      ordering-specific tests in `test_map.py`/`test_set.py`.
 - [ ] Implement a persistent vector trie (32-way branching, like
-      Immutable.js) for `List`/`Stack`.
-- [ ] Implement a HAMT (hash array mapped trie) for `Map`/`Set`.
-- [ ] Add `withMutations`/transient-batch support once the trie exists, so
-      bulk updates avoid the per-op allocation overhead entirely.
+      Immutable.js) for `List`/`Stack` — still backed by a copy-on-write
+      Python list.
+- [ ] Add `withMutations`/transient-batch support so bulk updates (e.g.
+      building a large `Map` from scratch) avoid the per-op allocation
+      overhead — `Map`/`OrderedMap`/`Set`/`OrderedSet` constructors
+      already do this implicitly (a private `_wrap`/direct-build path
+      bypasses the public `set`/`add` per call when constructing from an
+      iterable), but there's no public `with_mutations` API yet for
+      callers to batch their own multi-step updates.
 - [ ] Add benchmarks (`asv` or a simple `pytest-benchmark` suite) comparing
-      naive-copy vs. trie-backed implementations, so this phase has a
-      measurable "done."
+      the `List`'s naive-copy backing against `Map`/`Set`'s now-trie-backed
+      implementations, so the `List`/`Stack` vector-trie work above has a
+      measurable target.
 
 ## Phase 10 — Docs & examples
 
@@ -175,10 +200,13 @@ not the final implementation.
 ## Suggested sequencing
 
 Phases 1–5 (core abstractions, `List`, `Map`/`OrderedMap`, `Set`/`OrderedSet`,
-`Stack`) are done. Next up, in roughly descending priority: Phase 0 (infra —
-worth doing now, before the surface area grows further and makes retrofitting
-CI/type-checking more painful), Phase 6 (`Record`), then Phase 8's remaining
-`fromJS`/`toJS` item. `Seq`/`Range`/`Repeat` (Phase 7) and the trie rewrite
-(Phase 9) remain the two phases most worth deferring: both are substantial,
-and the current eager/copying implementations are a legitimate v0.1 to ship
-and get feedback on first.
+`Stack`) are done, and Phase 9's HAMT item (the `Map`/`Set` persistent
+backing) is done ahead of schedule. Next up, in roughly descending priority:
+Phase 0 (infra — worth doing now, before the surface area grows further and
+makes retrofitting CI/type-checking more painful), Phase 6 (`Record`), then
+Phase 8's remaining `fromJS`/`toJS` item. `Seq`/`Range`/`Repeat` (Phase 7)
+and the `List`/`Stack` vector-trie (the rest of Phase 9) remain the two
+things most worth deferring: both are substantial, and `List`'s current
+eager/copying implementation is a legitimate v0.1 to ship and get feedback
+on first — the `Map`/`Set` HAMT work shows the same technique applies
+cleanly to `List`/`Stack` later without disrupting their public API.
