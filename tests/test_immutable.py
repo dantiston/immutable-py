@@ -203,9 +203,37 @@ class TestImmutableList(unittest.TestCase):
     def test_map(self):
         a = immutable.List((1, 2, 3))
         self.assertEqual(list(a), [1, 2, 3])
-        b = a.map(lambda values: map(lambda x: x * 2, values))
+        b = a.map(lambda x: x * 2)
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [2, 4, 6])
+
+    def test_set_extends_list(self):
+        a = immutable.List((1, 2, 3))
+        b = a.set(4, "z")
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [1, 2, 3, None, "z"])
+
+    def test_delete_out_of_range_is_noop(self):
+        a = immutable.List((1, 2, 3))
+        b = a.delete(10)
+        self.assertTrue(a is b)
+
+    def test_concat_falsy_value(self):
+        a = immutable.List((1, 2, 3))
+        b = a.concat(0, False, "")
+        self.assertEqual(list(b), [1, 2, 3, 0, False, ""])
+
+    def test_equals(self):
+        a = immutable.List((1, 2, 3))
+        b = immutable.List((1, 2, 3))
+        c = immutable.List((1, 2, 4))
+        self.assertEqual(a, b)
+        self.assertNotEqual(a, c)
+
+    def test_hash_equal_lists(self):
+        a = immutable.List((1, 2, 3))
+        b = immutable.List((1, 2, 3))
+        self.assertEqual(hash(a), hash(b))
 
     def test_len(self):
         a = immutable.List((1, 2, 3))
