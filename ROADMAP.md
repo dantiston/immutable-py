@@ -207,9 +207,22 @@ not the final implementation.
 
 ## Phase 10 — Docs & examples
 
-- [ ] Per-type README section (or Sphinx/mkdocs site) with runnable
-      examples, mirroring Immutable.js's docs structure.
-- [ ] Docstrings on every public method.
+- [x] Per-type walkthrough with runnable examples: `API.md`, covering
+      every public method on every type plus the shared functional API
+      and `is_()`/`hash_()`. It's wired into the test suite as a doctest
+      file (`tests/test_doctest.py` registers it via
+      `doctest.DocFileSuite`, picked up automatically by `python -m
+      unittest discover -s tests`), so the examples are checked against
+      actual behavior on every run rather than drifting out of date.
+      Verified robust to Python's hash-randomization (`PYTHONHASHSEED`)
+      by construction: every example that prints `Map`/`Set` contents
+      goes through `sorted(...)`, an `Ordered*` type, or an
+      order-independent check, since plain `Map`/`Set` iterate in
+      hash-bucket order (see the note in `API.md` on this). Not yet a
+      Sphinx/mkdocs site — `API.md` is a single hand-written file, not
+      generated from docstrings.
+- [ ] Docstrings on every public method (most methods currently have
+      none — `API.md` covers usage, but `help(List.set)` etc. doesn't).
 - [ ] A migration note for JS developers: naming differences from Phase 8,
       what's intentionally not ported (e.g. JS-specific interop like
       `toJSON`), what's Python-idiomatic instead (`__iter__`, `__len__`,
