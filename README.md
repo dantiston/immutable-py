@@ -28,6 +28,11 @@ and `OrderedSet`, all sharing a common functional API (`map`, `filter`,
 Method names use `snake_case` rather than Immutable.js's `camelCase`, to
 match Python convention.
 
+See [API.md](API.md) for a full walkthrough of every type and method,
+with runnable examples — it doubles as the project's doctest suite (see
+"Running this file" at the bottom of it), so its examples are checked
+against the actual behavior on every test run.
+
 [Immutable.js]: https://github.com/immutable-js/immutable-js
 [Persistent]: http://en.wikipedia.org/wiki/Persistent_data_structure
 [Immutable]: http://en.wikipedia.org/wiki/Immutable_object
