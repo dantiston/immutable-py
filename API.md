@@ -344,6 +344,13 @@ True
 
 ```
 
+Under the hood, `OrderedMap` mirrors Immutable.js's actual `OrderedMap`
+rather than taking a shortcut: it's backed by *both* a HAMT (mapping each
+key to a position) and a vector trie (holding `(key, value)` pairs in
+insertion order), not just a plain list of keys bolted onto a HAMT-backed
+`Map`. See `immutable/map.py` for the details, including how it handles
+deletes without paying an O(n) rebuild on every one.
+
 ## Set and OrderedSet
 
 `Set` is a persistent hash set, also HAMT-backed, with the usual set
@@ -407,6 +414,12 @@ same API:
 True
 
 ```
+
+`Set` is itself backed by an internal `Map` (storing each element as both
+key and value), and `OrderedSet` is literally `Set` with that internal
+map swapped for an `OrderedMap` — no separate implementation, just a
+different backing `Map` subtype. That's also how Immutable.js relates the
+two.
 
 ## The shared functional API
 

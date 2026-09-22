@@ -14,10 +14,14 @@ functional mixin once and an `is_()`/`hash_()` equality protocol
 (`immutable/equality.py`), and `List`, `Stack`, `Map`/`OrderedMap`, and
 `Set`/`OrderedSet` are all built on top of it (`immutable/list.py`,
 `stack.py`, `map.py`, `set.py`). Phase 9's structural-sharing work is also
-done: `Map`/`Set` (and by extension `OrderedMap`/`OrderedSet`) are backed
-by a persistent HAMT (`immutable/hamt.py`) and `List`/`Stack` by a
-persistent vector trie (`immutable/vector.py`), rather than either copying
-a Python `dict`/`list` on every write. 173 tests pass (`python -m
+done: `Map`/`Set` are backed by a persistent HAMT (`immutable/hamt.py`)
+and `List`/`Stack` by a persistent vector trie (`immutable/vector.py`),
+rather than either copying a Python `dict`/`list` on every write.
+`OrderedMap`/`OrderedSet` are backed by *both* — matching Immutable.js's
+actual design (verified against its source), not just a HAMT plus a
+plain order-tracking tuple. `Set` wraps an internal `Map`, and
+`OrderedSet` is literally `Set` with that internal map swapped for an
+`OrderedMap`, mirroring Immutable.js exactly. 184 tests pass (`python -m
 unittest discover -s tests`). Still missing: `Record`, `Seq`/`Range`/
 `Repeat`, `fromJS`/`toJS`, `flatten`/`flatMap`, a public `with_mutations`
 API, `List`'s O(n) `insert`/`delete`/`unshift`/`shift` (a plain vector
@@ -93,9 +97,21 @@ Close out the type that's already started before moving on.
       `get_in`, `set_in`, `delete_in`, `merge`, `merge_with`, `merge_deep`,
       `map`, `filter`, `flip` (`immutable/map.py`). Still open:
       `merge_deep_with`, `with_mutations`.
-- [x] `OrderedMap`: implemented as a thin `Map` subclass — Python's `dict`
-      already preserves insertion order, so no separate backing structure
-      was needed (documented in the class docstring).
+- [x] `OrderedMap`: matches Immutable.js's actual design rather than
+      riding on Python `dict` ordering — backed by *both* a HAMT (`_index`:
+      key → position) and a vector trie (`_entries`: a `Vector` of
+      `(key, value)` pairs in insertion order, or `None` at a deleted
+      position). `set` on an existing key overwrites its slot in place
+      (no reorder); `delete` pops `_entries` if it was the most recently
+      appended live entry, otherwise leaves a tombstone. Tombstones
+      accumulate until `_entries` has grown to at least the trie's
+      branching width (32) *and* is at least double the live entry count,
+      at which point both structures are rebuilt with just the live
+      entries — the exact threshold Immutable.js's `OrderedMap` uses
+      (verified against its actual source, not assumed). See the class
+      docstring in `immutable/map.py` and `tests/test_map.py`'s
+      `test_ordered_map_*` tests (pop-vs-tombstone paths, compaction
+      triggering, and a 3000-op randomized run against a `dict` oracle).
 - [x] Key equality uses Python's own `==`/`hash()`, which our collections
       make *structural* by defining `__eq__`/`__hash__` themselves — so
       nested immutable collections already work correctly as `dict`/`set`
@@ -104,8 +120,18 @@ Close out the type that's already started before moving on.
 ## Phase 4 — `Set` / `OrderedSet`
 
 - [x] `Set`: `add`, `remove`/`delete`, `union`/`merge`, `intersect`,
-      `subtract`, `is_subset`, `is_superset` (`immutable/set.py`).
-- [x] `OrderedSet`: same rationale as `OrderedMap` — a thin `Set` subclass.
+      `subtract`, `is_subset`, `is_superset` (`immutable/set.py`). Backed
+      by an internal `Map` (`self._map`, storing each value as both key
+      and value) rather than its own HAMT — matches Immutable.js's actual
+      `Set`, which delegates to a `Map` the same way.
+- [x] `OrderedSet`: matches Immutable.js's actual design — not a separate
+      implementation, but literally `Set` with its internal map swapped
+      for an `OrderedMap` (`_map_class = OrderedMap`). Every method
+      (`add`/`delete`/`has`/`__iter__`/`__len__`/`union`/...) is inherited
+      from `Set` unchanged and picks up ordering for free through
+      whichever `Map` subtype `self._map` is — confirmed by
+      `test_ordered_set_reuses_set_methods` asserting those methods are
+      the exact same function objects on both classes, not overrides.
 
 ## Phase 5 — `Stack`
 
@@ -157,16 +183,16 @@ not the final implementation.
       pair or a child node (no wasted allocation for singleton subtrees),
       with a `_CollisionNode` fallback for genuine hash collisions after
       all bits are consumed. `Map`/`Set` now wrap a `HAMT` instead of
-      copying a `dict` on every write. `OrderedMap`/`OrderedSet` gained
-      real insertion-order tracking (a tuple of keys alongside the trie)
-      as a consequence — they could no longer piggyback on Python
-      `dict`'s incidental ordering once the backing store stopped being a
-      `dict`, which is arguably more correct: `Map`/`Set` now iterate in
-      genuine hash-bucket order like Immutable.js's real unordered types,
-      rather than accidentally-insertion-ordered. Covered by
-      `tests/test_hamt.py` (persistence-after-write, collisions, >32-way
-      fan-out, randomized set/delete against a `dict` oracle) plus
-      ordering-specific tests in `test_map.py`/`test_set.py`.
+      copying a `dict` on every write, so `Map`/`Set` iterate in genuine
+      hash-bucket order like Immutable.js's real unordered types, rather
+      than accidentally-insertion-ordered the way a `dict`-backed version
+      would. `OrderedMap`/`OrderedSet` were later rebuilt (see below) to
+      match Immutable.js's actual `OrderedMap`/`OrderedSet` design —
+      backed by both a HAMT *and* a vector trie, not just a tuple bolted
+      onto a HAMT-backed Map. Covered by `tests/test_hamt.py`
+      (persistence-after-write, collisions, >32-way fan-out, randomized
+      set/delete against a `dict` oracle) plus ordering-specific tests in
+      `test_map.py`/`test_set.py`.
 - [x] Implement a persistent vector trie (32-way branching, like
       Immutable.js) for `List`/`Stack` (`immutable/vector.py`): the classic
       Clojure/Immutable.js `PersistentVector` design — a trie for

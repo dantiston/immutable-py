@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 
-from typing import Generic, Iterable, Iterator, Tuple
+from typing import ClassVar, Generic, Iterable, Iterator, Type
 
 from .collection import SetCollection, ValueT
-from .equality import singleton
-from .hamt import EMPTY as _EMPTY_HAMT
-from .hamt import HAMT
+from .map import Map, OrderedMap
 
 
 class Set(SetCollection[ValueT], Generic[ValueT]):
+    # The Map subtype used internally to store `value -> value`.
+    # `OrderedSet` overrides only this, reusing every method below as-is -
+    # mirroring how Immutable.js's OrderedSet is a Set whose `_map` happens
+    # to be an OrderedMap rather than a Map.
+    _map_class: ClassVar[Type[Map]] = Map
+
     def __init__(self, values: Iterable[ValueT] = ()) -> None:
-        hamt = _EMPTY_HAMT
-        for value in values:
-            hamt = hamt.set(value, value)
-        self._hamt = hamt
+        self._map = self._map_class((v, v) for v in values)
 
     @classmethod
-    def _wrap(cls, hamt: HAMT) -> "Set":
+    def _wrap(cls, map_: Map) -> "Set":
         instance = cls.__new__(cls)
-        instance._hamt = hamt
+        instance._map = map_
         return instance
 
     @classmethod
@@ -30,18 +31,18 @@ class Set(SetCollection[ValueT], Generic[ValueT]):
         return isinstance(other, Set)
 
     def has(self, value: ValueT) -> bool:
-        return self._hamt.get(value, singleton) is not singleton
+        return self._map.has(value)
 
     def add(self, value: ValueT) -> "Set":
         if self.has(value):
             return self
-        return type(self)._wrap(self._hamt.set(value, value))
+        return type(self)._wrap(self._map.set(value, value))
 
     def delete(self, value: ValueT) -> "Set":
-        new_hamt = self._hamt.delete(value)
-        if new_hamt is self._hamt:
+        new_map = self._map.delete(value)
+        if new_map is self._map:
             return self
-        return type(self)._wrap(new_hamt)
+        return type(self)._wrap(new_map)
 
     remove = delete
 
@@ -73,59 +74,27 @@ class Set(SetCollection[ValueT], Generic[ValueT]):
         return all(self.has(v) for v in other)
 
     def __len__(self) -> int:
-        return len(self._hamt)
+        return len(self._map)
 
     def __iter__(self) -> Iterator[ValueT]:
-        return (k for k, _ in self._hamt)
+        return iter(self._map.keys())
 
     def __repr__(self) -> str:
-        return f"Set({list(self)!r})"
+        return f"{type(self).__name__}({list(self)!r})"
 
 
 class OrderedSet(Set[ValueT], Generic[ValueT]):
     """A Set that guarantees iteration in insertion order.
 
-    Same rationale as `OrderedMap`: `Set` iterates in HAMT (hash-bucket)
-    order, `OrderedSet` additionally tracks insertion order explicitly.
+    The entire implementation is inherited from `Set` unchanged - only
+    `_map_class` differs, so every method that goes through `self._map`
+    (`has`, `add`, `delete`, `__iter__`, `__len__`, ...) picks up
+    `OrderedMap`'s insertion-order guarantee for free. This is exactly
+    how Immutable.js's `OrderedSet` relates to `Set`.
     """
 
-    def __init__(self, values: Iterable[ValueT] = ()) -> None:
-        hamt = _EMPTY_HAMT
-        order = []
-        for value in values:
-            if hamt.get(value, singleton) is singleton:
-                order.append(value)
-            hamt = hamt.set(value, value)
-        self._hamt = hamt
-        self._order = tuple(order)
-
-    @classmethod
-    def _wrap(cls, hamt: HAMT, order: Tuple[ValueT, ...]) -> "OrderedSet":
-        instance = cls.__new__(cls)
-        instance._hamt = hamt
-        instance._order = order
-        return instance
+    _map_class: ClassVar[Type[Map]] = OrderedMap
 
     @classmethod
     def is_ordered_set(cls, other) -> bool:
         return isinstance(other, OrderedSet)
-
-    def add(self, value: ValueT) -> "OrderedSet":
-        if self.has(value):
-            return self
-        return OrderedSet._wrap(self._hamt.set(value, value), self._order + (value,))
-
-    def delete(self, value: ValueT) -> "OrderedSet":
-        new_hamt = self._hamt.delete(value)
-        if new_hamt is self._hamt:
-            return self
-        new_order = tuple(v for v in self._order if v != value)
-        return OrderedSet._wrap(new_hamt, new_order)
-
-    remove = delete
-
-    def clear(self) -> "OrderedSet":
-        return OrderedSet()
-
-    def __iter__(self) -> Iterator[ValueT]:
-        return iter(self._order)
