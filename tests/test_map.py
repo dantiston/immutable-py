@@ -173,6 +173,85 @@ class TestMap(unittest.TestCase):
             if i + 1 < len(snapshots):
                 self.assertEqual(snap.get(i + 1, "missing"), "missing")
 
+    def test_ordered_map_update_missing_key_uses_default(self):
+        # Regression test: an internal probe used to be implemented by
+        # calling the public get() with the "not set" sentinel as its
+        # nsv argument, which is indistinguishable from not passing an
+        # override at all - so this raised KeyError instead of using the
+        # updater's default.
+        a = immutable.OrderedMap()
+        b = a.update("z", lambda v: (v or 0) + 1)
+        self.assertEqual(b.get("z"), 1)
+
+    def test_ordered_map_delete_pops_last_inserted_key(self):
+        a = immutable.OrderedMap([("a", 1), ("b", 2), ("c", 3)])
+        b = a.delete("c")
+        self.assertEqual(list(b.keys()), ["a", "b"])
+        self.assertEqual(len(b._entries), 2)
+
+    def test_ordered_map_delete_middle_key_leaves_tombstone(self):
+        a = immutable.OrderedMap([("a", 1), ("b", 2), ("c", 3)])
+        b = a.delete("a")
+        self.assertEqual(list(b.keys()), ["b", "c"])
+        self.assertEqual(len(b), 2)
+        self.assertEqual(len(b._entries), 3)
+        self.assertIsNone(b._entries.get(0))
+
+    def test_ordered_map_delete_missing_key_is_noop(self):
+        a = immutable.OrderedMap([("a", 1)])
+        b = a.delete("missing")
+        self.assertTrue(a is b)
+
+    def test_ordered_map_compacts_after_enough_deletes(self):
+        keys = [f"k{i}" for i in range(50)]
+        a = immutable.OrderedMap((k, i) for i, k in enumerate(keys))
+        deleted = keys[:30]
+        b = a
+        for k in deleted:
+            b = b.delete(k)
+        remaining = [k for k in keys if k not in deleted]
+        self.assertEqual(list(b.keys()), remaining)
+        self.assertEqual(len(b), len(remaining))
+        for k in deleted:
+            self.assertFalse(b.has(k))
+        for k in remaining:
+            self.assertEqual(b.get(k), a.get(k))
+        # Compaction should have shrunk the backing vector well below the
+        # 50 (unfiltered) slots a naive tombstone-only approach would keep.
+        self.assertLess(len(b._entries), len(a._entries))
+        # The original is untouched by the whole delete sequence.
+        self.assertEqual(list(a.keys()), keys)
+        self.assertEqual(len(a), 50)
+
+    def test_ordered_map_is_backed_by_hamt_and_vector(self):
+        from immutable.hamt import HAMT
+        from immutable.vector import Vector
+
+        a = immutable.OrderedMap([("a", 1), ("b", 2)])
+        self.assertIsInstance(a._index, HAMT)
+        self.assertIsInstance(a._entries, Vector)
+
+    def test_ordered_map_randomized_against_dict_oracle(self):
+        import random
+
+        rng = random.Random(7)
+        om = immutable.OrderedMap()
+        ref = {}
+        for _ in range(3000):
+            if rng.random() < 0.6 or not ref:
+                key = rng.randint(0, 60)
+                value = rng.randint(0, 1000)
+                om = om.set(key, value)
+                ref[key] = value
+            else:
+                key = rng.choice(list(ref))
+                om = om.delete(key)
+                del ref[key]
+            self.assertEqual(list(om.keys()), list(ref.keys()))
+            self.assertEqual(len(om), len(ref))
+        for k, v in ref.items():
+            self.assertEqual(om.get(k), v)
+
 
 if __name__ == "__main__":
     unittest.main()

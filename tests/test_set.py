@@ -125,6 +125,25 @@ class TestSet(unittest.TestCase):
             if i + 1 < len(snapshots):
                 self.assertFalse(snap.has(i + 1))
 
+    def test_set_wraps_a_map(self):
+        a = immutable.Set([1, 2, 3])
+        self.assertIsInstance(a._map, immutable.Map)
+        self.assertNotIsInstance(a._map, immutable.OrderedMap)
+
+    def test_ordered_set_wraps_an_ordered_map(self):
+        a = immutable.OrderedSet([1, 2, 3])
+        self.assertIsInstance(a._map, immutable.OrderedMap)
+
+    def test_ordered_set_reuses_set_methods(self):
+        # OrderedSet defines no add/delete/has/__iter__/__len__ of its
+        # own - it only overrides which Map subtype backs it. Confirm
+        # that's still true rather than silently regressing to a copy.
+        for name in ("add", "delete", "has", "__iter__", "__len__", "union"):
+            self.assertIs(
+                getattr(immutable.OrderedSet, name),
+                getattr(immutable.Set, name),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
