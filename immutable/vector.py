@@ -1,211 +1,175 @@
 #!/usr/bin/env python3
 
+"""A persistent vector trie (Clojure's PersistentVector / Immutable.js's List).
+
+A 32-way branching trie gives O(log32 n) `get`/`set` at an arbitrary
+index. A small "tail" buffer holding the last (<=32) elements gives O(1)
+amortized `push`/`pop` at the end: most pushes just grow the tail; only
+every 32nd push has to fold the full tail into the trie as a new leaf
+(itself an O(log32 n) path-copy, since it recurses along one root-to-leaf
+path).
+
+This only supports efficient operations at *one* end (the end `push`/`pop`
+work on). Arbitrary-index insert/delete and prepend are not backed by this
+structure - `List`/`Stack` fall back to an O(n) rebuild for those, same as
+they did with the previous plain-list backing.
 """
-vector.py
 
-A Persisent Vector implementation based on immutable.js and clojure.
-"""
+from typing import Any, Iterable, Iterator, Tuple, Union
 
-import copy
-
-from dataclasses import dataclass
-from typing import List, Iterator
-
-from immutable.shared import singleton
-
-DEPTH = 5
-WIDTH = 1 << DEPTH
+BITS = 5
+WIDTH = 1 << BITS
 MASK = WIDTH - 1
 
 
-@dataclass
-class Node(object):
-    children: List["Node"]
-
-    def get(index: int, nsv) -> "Node":
-        self.children.get(index, nsv)
-
-    def set(index: int, value) -> None:
-        self.children[index] = value
+def _tail_offset(count: int) -> int:
+    if count < WIDTH:
+        return 0
+    return ((count - 1) >> BITS) << BITS
 
 
-class Vector(object):
-    def __init__(self, length: int, shift: int, root: Node, tail: List):
-        self._length = length
-        self._shift = shift
-        self._root = root
-        self._tail = tail
-        self._hash = None
-        self._str = None
-        self._repr = None
-        self._list = None
+def _new_path(level: int, node: tuple) -> tuple:
+    if level == 0:
+        return node
+    return (_new_path(level - BITS, node),)
 
-    def _tail_offset(self) -> int:
-        if len(self) < WIDTH:
-            return 0
-        return ((len(self) - 1) >> DEPTH) << DEPTH
 
-    def _get_values(self, index: int):
-        if index >= self._tail_offset():
-            return self._tail
-        node = self._root
-        for level in range(shift, 0, -DEPTH):
-            node = node.get((i >> level) & MASK)
-        return node.children
+def _push_tail(shift: int, node: tuple, tail_node: tuple, count: int) -> tuple:
+    sub_idx = ((count - 1) >> shift) & MASK
+    if shift == BITS:
+        if sub_idx < len(node):
+            return node[:sub_idx] + (tail_node,) + node[sub_idx + 1 :]
+        return node + (tail_node,)
+    if sub_idx < len(node):
+        child = _push_tail(shift - BITS, node[sub_idx], tail_node, count)
+        return node[:sub_idx] + (child,) + node[sub_idx + 1 :]
+    return node + (_new_path(shift - BITS, tail_node),)
 
-    def get(self, index: int, nsv=singleton):
-        if index >= 0 and index < len(self):
-            values = self._get_values(index)
-            return values[index & MASK]
-        if nsv is singleton:
-            raise Exception("Index out of bounds")
-        return nsv
 
-    def _set(self, level: int, node: Node, index: int, value) -> Node:
-        result = copy.copy(node)
-        if level == 0:
-            result.set(index & MASK, value)
-        else:
-            subindex = (index >> level) & MASK
-            result.set(
-                subindex, this._set(level - DEPTH, node.get(subindex), index, value)
-            )
-        return result
+def _pop_tail(shift: int, node: tuple, count: int) -> Union[tuple, None]:
+    sub_idx = ((count - 2) >> shift) & MASK
+    if shift > BITS:
+        new_child = _pop_tail(shift - BITS, node[sub_idx], count)
+        if new_child is None and sub_idx == 0:
+            return None
+        if new_child is None:
+            return node[:sub_idx]
+        return node[:sub_idx] + (new_child,)
+    if sub_idx == 0:
+        return None
+    return node[:sub_idx]
 
-    def set(self, index: int, value) -> "Vector":
-        if index >= 0 and index < len(self):
-            if index >= self._tail_offset():
-                new_tail = list(self._tail)
-                new_tail[index & MASK] = value
-                return Vector(self._length, self._shift, self._root, new_tail)
-            return Vector(
-                self._length,
-                self._shift,
-                self._set(self._shift, self._root, index, value),
-                self._tail,
-            )
-        if index == len(self):
-            return self.add(value)
-        raise Exception("Index out of bounds")
 
-    def _push_tail(self, level: int, parent: Node, tail: Node) -> Node:
-        subindex = ((len(self) - 1) >> level) & MASK
-        result = copy.copy(parent)
-        new_node = None
-        if level == DEPTH:
-            new_node = tail
-        else:
-            child = parent.get(subindex, None)
-            new_node = (
-                self._push_tail(level - DEPTH, child, tail)
-                if child is None
-                else self._new_path(level - DEPTH, tail)
-            )
-        result.set(subindex, new_node)
-        return result
+def _leaf_for(root: tuple, shift: int, index: int) -> tuple:
+    node = root
+    level = shift
+    while level > 0:
+        node = node[(index >> level) & MASK]
+        level -= BITS
+    return node
 
-    def _new_path(level: int, node: Node) -> Node:
-        if level == 0:
-            return node
-        return Node(children=[self._new_path(level - DEPTH, node)])
 
-    def add(self, value) -> "Vector":
-        if len(self) - self._tail_offset() < WIDTH:
-            new_tail = [*self._tail, value]
-            return Vector(self._length + 1, self._shift, self._root, new_tail)
-        new_root = None
-        new_shift = self._shift
-        new_tail = Node(self._tail)
-        if (len(self) >> DEPTH) > (1 << shift):
-            new_root = Node(children=[root, self._new_path(shift, new_tail)])
-            new_shift += DEPTH
-        else:
-            new_root = self._push_tail(self._shift, self._root, new_tail)
-        return Vector(self._length + 1, new_shift, new_root, [value])
+class Vector:
+    """An immutable, structurally-shared sequence. See module docstring."""
 
-    def concat(self, values) -> "Vector":
-        """Naive for now"""
-        result = self
-        for value in values:
-            result = result.add(value)
-        return result
+    __slots__ = ("count", "shift", "root", "tail")
 
-    def pop(self, i=None):  # -> Tuple[TValue, "Vector"]:
-        if not self:
-            raise IndexError("pop from empty vector")
-        if i is not None:
-            if i >= len(self) or (i < 0 and -i > len(self)):
-                raise IndexError("pop index out of range")
-            if i == 0:
-                return self.shift()
-        if i is None or i == len(self) - 1:
-            if len(self) == 1:
-                return _empty_vector
-            return _empty_vector.concat(self._get_list()[:-1])
-        return self.splice(i, 1)
-
-    def remove(self, value) -> "Vector":
-        """Naive for now"""
-        current = self._get_list()
-        current.remove(value)
-        return _empty_vector.concat(current)
-
-    def shift(self) -> "Vector":
-        if len(self) == 1:
-            return _empty_vector
-        return self.splice(0, 1)
-
-    def splice(self, index: int, to_remove: int) -> "Vector":
-        """Naive for now"""
-        current = self._get_list()
-        return _empty_vector.concat(current[:index]).concat(current[index + to_remove:])
-
-    def _get_list(self) -> List:
-        if self._list is None:
-            self._list = [self.get(i) for i in range(len(self))]
-        return self._list
-
-    def __iter__(self) -> Iterator:
-        return iter(self._get_list())
+    def __init__(
+        self, count: int = 0, shift: int = 0, root: Union[tuple, None] = None, tail: tuple = ()
+    ) -> None:
+        self.count = count
+        self.shift = shift
+        self.root = root
+        self.tail = tail
 
     def __len__(self) -> int:
-        return self._length
+        return self.count
 
-    def __bool__(self) -> bool:
-        return self._length > 0
+    def get(self, index: int) -> Any:
+        if not 0 <= index < self.count:
+            raise IndexError(index)
+        if index >= _tail_offset(self.count):
+            return self.tail[index & MASK]
+        node = self.root
+        for level in range(self.shift, 0, -BITS):
+            node = node[(index >> level) & MASK]
+        return node[index & MASK]
 
-    def __contains__(self, value) -> bool:
-        return value in self._get_list()
+    def set(self, index: int, value: Any) -> "Vector":
+        if not 0 <= index < self.count:
+            raise IndexError(index)
+        if index >= _tail_offset(self.count):
+            new_tail = _replace(self.tail, index & MASK, value)
+            return Vector(self.count, self.shift, self.root, new_tail)
+        new_root = _set_in_trie(self.root, self.shift, index, value)
+        return Vector(self.count, self.shift, new_root, self.tail)
 
-    def __repr__(self) -> str:
-        if self._repr is None:
-            self._repr = f"<Vector {repr(self._get_list())}>"
-        return self._repr
+    def push(self, value: Any) -> "Vector":
+        if self.count - _tail_offset(self.count) < WIDTH:
+            return Vector(self.count + 1, self.shift, self.root, self.tail + (value,))
+        tail_node = self.tail
+        if self.root is None:
+            new_root, new_shift = tail_node, 0
+        elif (self.count >> BITS) > (1 << self.shift):
+            new_root = (self.root, _new_path(self.shift, tail_node))
+            new_shift = self.shift + BITS
+        else:
+            new_root = _push_tail(self.shift, self.root, tail_node, self.count)
+            new_shift = self.shift
+        return Vector(self.count + 1, new_shift, new_root, (value,))
 
-    def __str__(self) -> str:
-        if self._str is None:
-            self._str = str(self._get_list())
-        return self._str
+    def pop(self) -> "Vector":
+        if self.count == 0:
+            raise IndexError("pop from an empty Vector")
+        if self.count == 1:
+            return EMPTY
+        if self.count - _tail_offset(self.count) > 1:
+            return Vector(self.count - 1, self.shift, self.root, self.tail[:-1])
+        new_tail = _leaf_for(self.root, self.shift, self.count - 2)
+        if self.shift == 0:
+            # The whole trie was a single leaf (no branching above it);
+            # pulling it out as the new tail empties the trie entirely.
+            new_root, new_shift = None, 0
+        else:
+            new_root = _pop_tail(self.shift, self.root, self.count)
+            new_shift = self.shift
+            if new_root is None:
+                new_shift = 0
+            elif self.shift > BITS and len(new_root) == 1:
+                new_root, new_shift = new_root[0], self.shift - BITS
+        return Vector(self.count - 1, new_shift, new_root, tuple(new_tail))
 
-    def __hash__(self) -> int:
-        if self._hash is None:
-            result = 1
-            for value in self:
-                result = 31 * result + (hash(value) if value is not None else 0)
-            self._hash = result
-        return self._hash
+    def __iter__(self) -> Iterator[Any]:
+        if self.root is not None:
+            yield from _walk(self.root, self.shift)
+        yield from self.tail
 
-    def __eq__(self, other) -> bool:
-        if self is other:
-            return True
-        if isinstance(other, Vector):
-            if len(self) != len(other) or hash(self) != hash(other):
-                return False
-            for i in range(len(self)):
-                if self.get(i) != other.get(i):
-                    return False
-            return True
-        return False
+    @classmethod
+    def from_iterable(cls, items: Iterable[Any]) -> "Vector":
+        vector = EMPTY
+        for item in items:
+            vector = vector.push(item)
+        return vector
 
 
-_empty_vector = Vector(0, 5, Node(children=[]), [])
+def _walk(node: tuple, level: int) -> Iterator[Any]:
+    if level == 0:
+        yield from node
+    else:
+        for child in node:
+            yield from _walk(child, level - BITS)
+
+
+def _replace(entries: tuple, idx: int, value: Any) -> tuple:
+    return entries[:idx] + (value,) + entries[idx + 1 :]
+
+
+def _set_in_trie(node: tuple, shift: int, index: int, value: Any) -> tuple:
+    if shift == 0:
+        return _replace(node, index & MASK, value)
+    sub_idx = (index >> shift) & MASK
+    child = _set_in_trie(node[sub_idx], shift - BITS, index, value)
+    return _replace(node, sub_idx, child)
+
+
+EMPTY = Vector()

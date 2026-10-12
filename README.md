@@ -13,7 +13,25 @@ yields new updated data.
 
 These data structures aim to be highly efficient on cPython by using structural
 sharing via [hash maps tries][] and [vector tries][] as popularized by Clojure
-and Scala, minimizing the need to copy or cache data.
+and Scala, minimizing the need to copy or cache data. `Map`/`Set` are backed
+by a [hash array mapped trie](immutable/hamt.py); `List`/`Stack` by a
+[persistent vector trie](immutable/vector.py). `List`'s `insert`/`delete`/
+`unshift`/`shift` are still O(n) — only a more complex relaxed-radix-trie
+design gets those below linear — see [ROADMAP.md](ROADMAP.md) for the
+current state.
+
+Immutable.py currently includes `List`, `Stack`, `Map`, `OrderedMap`, `Set`,
+and `OrderedSet`, all sharing a common functional API (`map`, `filter`,
+`reduce`, `sort`, `group_by`, `take`/`skip` and friends — see
+`immutable/collection.py`) plus `is_()`/`hash_()` for value equality.
+
+Method names use `snake_case` rather than Immutable.js's `camelCase`, to
+match Python convention.
+
+See [API.md](API.md) for a full walkthrough of every type and method,
+with runnable examples — it doubles as the project's doctest suite (see
+"Running this file" at the bottom of it), so its examples are checked
+against the actual behavior on every test run.
 
 [Immutable.js]: https://github.com/immutable-js/immutable-js
 [Persistent]: http://en.wikipedia.org/wiki/Persistent_data_structure

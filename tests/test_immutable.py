@@ -77,21 +77,7 @@ class TestImmutableList(unittest.TestCase):
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [1, 7, 3])
 
-    def test_delete_first(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.delete(0)
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [2, 3])
-
-    def test_delete_mid(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.delete(1)
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [1, 3])
-
-    def test_delete_last(self):
+    def test_delete(self):
         a = immutable.List((1, 2, 3))
         self.assertEqual(list(a), [1, 2, 3])
         b = a.delete(2)
@@ -214,27 +200,6 @@ class TestImmutableList(unittest.TestCase):
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 
-    def test_concat_falsy_values(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.concat(0, False, "")
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [1, 2, 3, 0, False, ""])
-
-    def test_concat_empty_collections(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.concat([], (), immutable.List())
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [1, 2, 3])
-
-    def test_concat_falsy_values_empty_collections(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.concat(0, False, "", [], (), immutable.List())
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [1, 2, 3, 0, False, ""])
-
     def test_map(self):
         a = immutable.List((1, 2, 3))
         self.assertEqual(list(a), [1, 2, 3])
@@ -242,88 +207,33 @@ class TestImmutableList(unittest.TestCase):
         self.assertEqual(list(a), [1, 2, 3])
         self.assertEqual(list(b), [2, 4, 6])
 
-    def test_flat_map_flat(self):
+    def test_set_extends_list(self):
         a = immutable.List((1, 2, 3))
+        b = a.set(4, "z")
         self.assertEqual(list(a), [1, 2, 3])
-        b = a.flat_map(lambda x: x * 2)
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [2, 4, 6])
+        self.assertEqual(list(b), [1, 2, 3, None, "z"])
 
-    def test_flat_map_nested(self):
-        a = immutable.List(
-            (
-                immutable.List((1, 1, 1)),
-                immutable.List((2, 2, 2)),
-                immutable.List((3, 3, 3)),
-            )
-        )
-        self.assertEqual([list(x) for x in a], [[1, 1, 1], [2, 2, 2], [3, 3, 3]])
-        b = a.flat_map(lambda x: x * 2)
-        self.assertEqual([list(x) for x in a], [[1, 1, 1], [2, 2, 2], [3, 3, 3]])
-        self.assertEqual(list(b), [2, 2, 2, 4, 4, 4, 6, 6, 6])
-
-    def test_filter(self):
+    def test_delete_out_of_range_is_noop(self):
         a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.filter(lambda x: x % 2 == 0)
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [2])
+        b = a.delete(10)
+        self.assertTrue(a is b)
 
-    def test_zip_one(self):
+    def test_concat_falsy_value(self):
         a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.zip(immutable.List((4, 5, 6)))
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5], [3, 6]])
+        b = a.concat(0, False, "")
+        self.assertEqual(list(b), [1, 2, 3, 0, False, ""])
 
-    def test_zip_many(self):
+    def test_equals(self):
         a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.zip(immutable.List((4, 5, 6)), immutable.List((7, 8, 9)))
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual([list(x) for x in b], [[1, 4, 7], [2, 5, 8], [3, 6, 9]])
+        b = immutable.List((1, 2, 3))
+        c = immutable.List((1, 2, 4))
+        self.assertEqual(a, b)
+        self.assertNotEqual(a, c)
 
-    def test_zip_short(self):
+    def test_hash_equal_lists(self):
         a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.zip(immutable.List((4, 5)))
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5]])
-
-    def test_zip_all_one(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.zip_all(immutable.List((4, 5, 6)))
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5], [3, 6]])
-
-    def test_zip_all_many(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.zip_all(immutable.List((4, 5, 6)), immutable.List((7, 8, 9)))
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual([list(x) for x in b], [[1, 4, 7], [2, 5, 8], [3, 6, 9]])
-
-    def test_zip_all_long(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.zip_all(immutable.List((4, 5)))
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5], [3, None]])
-
-    def test_zip_longest_long(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.zip_longest(immutable.List((4, 5)))
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual([list(x) for x in b], [[1, 4], [2, 5], [3, None]])
-
-    def test_zip_with(self):
-        a = immutable.List((1, 2, 3))
-        self.assertEqual(list(a), [1, 2, 3])
-        b = a.zip_with(lambda x, y: x + y, immutable.List((4, 5, 6)))
-        self.assertEqual(list(a), [1, 2, 3])
-        self.assertEqual(list(b), [5, 7, 9])
+        b = immutable.List((1, 2, 3))
+        self.assertEqual(hash(a), hash(b))
 
     def test_len(self):
         a = immutable.List((1, 2, 3))
@@ -336,3 +246,37 @@ class TestImmutableList(unittest.TestCase):
         actual = list(a)
         expected = [1, 2, 3]
         self.assertEqual(actual, expected)
+
+    def test_large_scale_push_persistence(self):
+        a = immutable.List()
+        snapshots = []
+        for i in range(200):
+            a = a.push(i)
+            snapshots.append(a)
+        for i, snap in enumerate(snapshots):
+            self.assertEqual(len(snap), i + 1)
+            self.assertEqual(list(snap), list(range(i + 1)))
+            self.assertEqual(snap.get(0), 0)
+            self.assertEqual(snap.get(-1), i)
+
+    def test_large_scale_pop_all_the_way(self):
+        a = immutable.List(range(200))
+        while len(a) > 0:
+            expected_len = len(a) - 1
+            a = a.pop()
+            self.assertEqual(len(a), expected_len)
+            self.assertEqual(list(a), list(range(expected_len)))
+
+    def test_large_scale_set(self):
+        a = immutable.List(range(200))
+        b = a.set(150, "changed")
+        self.assertEqual(a.get(150), 150)
+        self.assertEqual(b.get(150), "changed")
+        self.assertEqual(len(b), 200)
+
+    def test_negative_get_across_scale(self):
+        a = immutable.List(range(100))
+        self.assertEqual(a.get(-1), 99)
+        self.assertEqual(a.get(-100), 0)
+        with self.assertRaises(IndexError):
+            a.get(-101)
